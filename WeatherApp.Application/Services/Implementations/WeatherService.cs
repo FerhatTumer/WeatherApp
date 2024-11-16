@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text.Json;
+using Serilog;
 using StackExchange.Redis;
 using WeatherApp.Application.DTOs;
 using WeatherApp.Application.Services.Interfaces;
@@ -78,6 +79,7 @@ public class WeatherService : IWeatherService
             }
             catch (Exception ex)
             {
+                Log.Warning("FetchWeatherAsync Error", cityName);
                 lastException = ex;
             }
         }
@@ -104,6 +106,8 @@ public class WeatherService : IWeatherService
         {
             throw lastException;
         }
+
+        Log.Warning("FetchWeatherAsync Empty response", cityName);
 
         return null;
     }

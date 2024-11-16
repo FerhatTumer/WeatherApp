@@ -14,8 +14,18 @@ using FluentValidation.AspNetCore;
 using WeatherApp.Application.Services;
 using WeatherApp.Infrastructure.Services;
 using WeatherApp.Domain.Events;
+using WeatherApp.Infrastructure.Middleware;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console() // Logları konsola yazdır
+    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day) // Logları günlük dosyalara yazdır
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog();
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -60,6 +70,8 @@ if (!app.Environment.IsDevelopment())
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
+app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseHttpsRedirection();
 
