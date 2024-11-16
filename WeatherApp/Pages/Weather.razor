@@ -1,0 +1,45 @@
+﻿@page "/weather"
+@using WeatherApp.Application.DTOs
+@inject WeatherApp.Application.Services.Interfaces.IWeatherService WeatherService
+
+<h3>Weather Forecast</h3>
+
+<div>
+    <label for="cityInput">Enter city name:</label>
+    <input id="cityInput" @bind="CityName" placeholder="City name..." />
+    <button @onclick="GetWeather">Get Weather</button>
+</div>
+
+@if (WeatherData != null)
+{
+    <div>
+        <h4>Weather Data for @CityName:</h4>
+        <p>Temperature: @WeatherData.Temperature °C</p>
+        <p>Condition: @WeatherData.Condition</p>
+    </div>
+}
+
+@if (ErrorMessage != null)
+{
+    <p style="color: red">@ErrorMessage</p>
+}
+
+@code {
+    private string CityName = string.Empty;
+    private WeatherInfo? WeatherData;
+    private string? ErrorMessage;
+
+    private async Task GetWeather()
+    {
+        try
+        {
+            WeatherData = await WeatherService.GetWeatherAsync(CityName);
+            ErrorMessage = WeatherData == null ? "No weather data available." : null;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error fetching weather data: {ex.Message}";
+        }
+    }
+}
+

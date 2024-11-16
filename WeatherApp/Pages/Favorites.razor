@@ -1,0 +1,98 @@
+﻿@page "/favorites"
+@using MediatR
+@using WeatherApp.Application.Commands
+@using WeatherApp.Application.DTOs
+@using WeatherApp.Application.Queries
+@using WeatherApp.Application.Services
+@using WeatherApp.Application.Services.Interfaces
+@inject IMediator Mediator
+@inject IFavoriteCityService FavoriteCityService
+
+<h3>Add Favorite City</h3>
+<div>
+    <input @bind="NewCity" placeholder="Enter city name..." class="form-control" />
+    <button @onclick="AddCity" class="btn btn-primary mt-2">Add</button>
+</div>
+
+@if (FavoriteCities.Any())
+{
+    <h4 class="mt-4">Favorite Cities</h4>
+    <ul>
+        @foreach (var city in FavoriteCities)
+        {
+            <li>
+                <b>@city.CityName:</b> Temperature: @city.Temperature °C, Condition: @city.Condition
+                <button @onclick="() => RemoveCity(city.Id)" class="btn btn-danger btn-sm">Remove</button>
+            </li>
+        }
+    </ul>
+
+    <h4 class="mt-4">Summary</h4>
+    <p><b>Hottest City:</b> @Summary.HottestCity?.City (@Summary.HottestCity?.Temperature ?? 0 °C)</p>
+    <p><b>Coldest City:</b> @Summary.ColdestCity?.City (@Summary.ColdestCity?.Temperature ?? 0 °C)</p>
+    <p><b>Average Temperature:</b> @Summary.AverageTemperature °C</p>
+}
+else
+{
+    <p class="mt-4">No favorite cities added yet.</p>
+}
+
+@code {
+    private string NewCity = string.Empty;
+    private List<WeatherCityViewModel> FavoriteCities = new();
+    private FavoriteCitySummary? Summary;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFavoriteCities();
+    }
+
+    private async Task AddCity()
+    {
+        var command = new AddFavoriteCityCommand(NewCity);
+
+        await Mediator.Send(command);
+        await LoadFavoriteCities();
+        NewCity = string.Empty;
+    }
+
+    private async Task RemoveCity(Guid cityId)
+    {
+        var command = new DeleteFavoriteCityCommand(cityId);
+        await Mediator.Send(command);
+        await LoadFavoriteCities();
+    }
+
+    private async Task LoadFavoriteCities()
+    {
+        // Favori şehirleri getir
+        var query = new GetAllFavoriteCitiesQuery();
+        var cities = await Mediator.Send(query);
+
+        // Şehirlerin hava durumu bilgilerini al
+        var cityNames = cities.Select(c => c.CityName);
+        var weatherInfos = await FavoriteCityService.GetWeatherForCitiesAsync(cityNames);
+
+        // Favori şehir listesi oluştur
+        FavoriteCities = cities
+            .Select(c => new WeatherCityViewModel
+                {
+                    Id = c.Id,
+                    CityName = c.CityName,
+                    Temperature = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Temperature ?? 0,
+                    Condition = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Condition ?? "N/A"
+                })
+            .ToList();
+
+        // Özet bilgileri getir
+        Summary = await FavoriteCityService.GetFavoriteCitySummaryAsync();
+    }
+
+    public class WeatherCityViewModel
+    {
+        public Guid Id { get; set; }
+        public string CityName { get; set; }
+        public double Temperature { get; set; }
+        public string Condition { get; set; } = string.Empty;
+    }
+}
