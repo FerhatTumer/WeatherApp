@@ -8,10 +8,10 @@
 @inject IMediator Mediator
 @inject IFavoriteCityService FavoriteCityService
 
-<h3>Add Favorite City</h3>
+<h3>Add Favorite Cities</h3>
 <div>
-    <input @bind="NewCity" placeholder="Enter city name..." class="form-control" />
-    <button @onclick="AddCity" class="btn btn-primary mt-2">Add</button>
+    <input @bind="NewCities" placeholder="Enter city names (comma-separated)..." class="form-control" />
+    <button @onclick="AddCities" class="btn btn-primary mt-2">Add</button>
 </div>
 
 @if (FavoriteCities.Any())
@@ -26,34 +26,28 @@
             </li>
         }
     </ul>
-
-    <h4 class="mt-4">Summary</h4>
-    <p><b>Hottest City:</b> @Summary.HottestCity?.City (@Summary.HottestCity?.Temperature ?? 0 °C)</p>
-    <p><b>Coldest City:</b> @Summary.ColdestCity?.City (@Summary.ColdestCity?.Temperature ?? 0 °C)</p>
-    <p><b>Average Temperature:</b> @Summary.AverageTemperature °C</p>
-}
-else
-{
-    <p class="mt-4">No favorite cities added yet.</p>
 }
 
 @code {
-    private string NewCity = string.Empty;
+    private string NewCities = string.Empty;
     private List<WeatherCityViewModel> FavoriteCities = new();
-    private FavoriteCitySummary? Summary;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadFavoriteCities();
     }
 
-    private async Task AddCity()
+    private async Task AddCities()
     {
-        var command = new AddFavoriteCityCommand(NewCity);
+        var cities = NewCities.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var city in cities)
+        {
+            var command = new AddFavoriteCityCommand(city);
+            await Mediator.Send(command);
+        }
 
-        await Mediator.Send(command);
         await LoadFavoriteCities();
-        NewCity = string.Empty;
+        NewCities = string.Empty;
     }
 
     private async Task RemoveCity(Guid cityId)
@@ -65,27 +59,18 @@ else
 
     private async Task LoadFavoriteCities()
     {
-        // Favori şehirleri getir
         var query = new GetAllFavoriteCitiesQuery();
         var cities = await Mediator.Send(query);
-
-        // Şehirlerin hava durumu bilgilerini al
         var cityNames = cities.Select(c => c.CityName);
         var weatherInfos = await FavoriteCityService.GetWeatherForCitiesAsync(cityNames);
 
-        // Favori şehir listesi oluştur
-        FavoriteCities = cities
-            .Select(c => new WeatherCityViewModel
-                {
-                    Id = c.Id,
-                    CityName = c.CityName,
-                    Temperature = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Temperature ?? 0,
-                    Condition = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Condition ?? "N/A"
-                })
-            .ToList();
-
-        // Özet bilgileri getir
-        Summary = await FavoriteCityService.GetFavoriteCitySummaryAsync();
+        FavoriteCities = cities.Select(c => new WeatherCityViewModel
+            {
+                Id = c.Id,
+                CityName = c.CityName,
+                Temperature = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Temperature ?? 0,
+                Condition = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Condition ?? "N/A"
+            }).ToList();
     }
 
     public class WeatherCityViewModel

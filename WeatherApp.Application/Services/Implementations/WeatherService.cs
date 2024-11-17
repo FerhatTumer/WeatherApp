@@ -36,9 +36,17 @@ public class WeatherService : IWeatherService
         return await tcs.Task;
     }
 
+    public async Task<List<WeatherInfo>> GetWeatherForCitiesAsync(IEnumerable<string> cityNames)
+    {
+        var tasks = cityNames.Select(city => GetWeatherAsync(city));
+        var results = await Task.WhenAll(tasks);
+
+        return results.Where(r => r != null).ToList();
+    }
+
     private async Task ProcessWeatherRequestsAsync(string cityName, WeatherRequestGroup requestGroup)
     {
-        await Task.Delay(5000);
+        await Task.Delay(5000); // Bekleme entegrasyonu korunmuştur
 
         try
         {

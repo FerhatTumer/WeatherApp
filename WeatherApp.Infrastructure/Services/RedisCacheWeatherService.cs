@@ -1,8 +1,7 @@
-﻿using StackExchange.Redis;
-using System.Text.Json;
+﻿using System.Text.Json;
+using StackExchange.Redis;
 using WeatherApp.Application.DTOs;
 using WeatherApp.Application.Services.Interfaces;
-using WeatherApp.Domain.Entities;
 
 namespace WeatherApp.Infrastructure.Services;
 
@@ -17,23 +16,47 @@ public class RedisCacheWeatherService : IWeatherService
         _redisCache = redis.GetDatabase();
     }
 
-    public async Task<WeatherInfo> GetWeatherAsync(string cityName)
+    public async Task<WeatherInfo?> GetWeatherAsync(string cityName)
     {
         var cacheKey = cityName.ToLower();
 
-        // Redis Cache kontrolü
         var cachedData = await _redisCache.StringGetAsync(cacheKey);
         if (!cachedData.IsNullOrEmpty)
         {
-            return JsonSerializer.Deserialize<WeatherInfo>(cachedData)!;
+            return JsonSerializer.Deserialize<WeatherInfo>(cachedData);
         }
 
-        // API'den veri çekme
         var weatherInfo = await _innerWeatherService.GetWeatherAsync(cityName);
 
-        // Redis'e kaydet
-        await _redisCache.StringSetAsync(cacheKey, JsonSerializer.Serialize(weatherInfo), TimeSpan.FromMinutes(10));
+        if (weatherInfo != null)
+        {
+            await _redisCache.StringSetAsync(cacheKey, JsonSerializer.Serialize(weatherInfo), TimeSpan.FromMinutes(10));
+        }
 
         return weatherInfo;
+    }
+
+    public async Task<List<WeatherInfo>> GetWeatherForCitiesAsync(IEnumerable<string> cityNames)
+    {
+        var tasks = cityNames.Select(async city =>
+        {
+            var cacheKey = city.ToLower();
+            var cachedData = await _redisCache.StringGetAsync(cacheKey);
+
+            if (!cachedData.IsNullOrEmpty)
+            {
+                return JsonSerializer.Deserialize<WeatherInfo>(cachedData);
+            }
+
+            var weather = await _innerWeatherService.GetWeatherAsync(city);
+            if (weather != null)
+            {
+                await _redisCache.StringSetAsync(cacheKey, JsonSerializer.Serialize(weather), TimeSpan.FromMinutes(10));
+            }
+            return weather;
+        });
+
+        var results = await Task.WhenAll(tasks);
+        return results.Where(r => r != null).ToList();
     }
 }

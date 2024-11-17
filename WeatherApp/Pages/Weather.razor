@@ -5,17 +5,23 @@
 <h3>Weather Forecast</h3>
 
 <div>
-    <label for="cityInput">Enter city name:</label>
-    <input id="cityInput" @bind="CityName" placeholder="City name..." />
+    <label for="cityInput">Enter city names (comma-separated):</label>
+    <input id="cityInput" @bind="CityNames" placeholder="City1, City2, ..." />
     <button @onclick="GetWeather">Get Weather</button>
 </div>
 
-@if (WeatherData != null)
+@if (WeatherDataList != null && WeatherDataList.Any())
 {
     <div>
-        <h4>Weather Data for @CityName:</h4>
-        <p>Temperature: @WeatherData.Temperature °C</p>
-        <p>Condition: @WeatherData.Condition</p>
+        <h4>Weather Data:</h4>
+        @foreach (var weather in WeatherDataList)
+        {
+            <div>
+                <h5>@weather.City:</h5>
+                <p>Temperature: @weather.Temperature °C</p>
+                <p>Condition: @weather.Condition</p>
+            </div>
+        }
     </div>
 }
 
@@ -25,16 +31,17 @@
 }
 
 @code {
-    private string CityName = string.Empty;
-    private WeatherInfo? WeatherData;
+    private string CityNames = string.Empty;
+    private List<WeatherInfo> WeatherDataList = new();
     private string? ErrorMessage;
 
     private async Task GetWeather()
     {
         try
         {
-            WeatherData = await WeatherService.GetWeatherAsync(CityName);
-            ErrorMessage = WeatherData == null ? "No weather data available." : null;
+            var cities = CityNames.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            WeatherDataList = await WeatherService.GetWeatherForCitiesAsync(cities);
+            ErrorMessage = WeatherDataList.Any() ? null : "No weather data available for the cities.";
         }
         catch (Exception ex)
         {
@@ -42,4 +49,3 @@
         }
     }
 }
-

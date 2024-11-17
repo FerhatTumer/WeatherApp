@@ -4,6 +4,5 @@ namespace WeatherApp.Application.Services;
 
 public interface IFavoriteCityService
 {
-    Task<FavoriteCitySummary> GetFavoriteCitySummaryAsync();
-    Task<IEnumerable<WeatherInfo>> GetWeatherForCitiesAsync(IEnumerable<string> cities);
+    Task<List<WeatherInfo>> GetWeatherForCitiesAsync(IEnumerable<string> cityNames);
 }
