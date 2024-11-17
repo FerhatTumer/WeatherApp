@@ -1,27 +1,37 @@
-﻿using System.Text.Json.Serialization;
-
-namespace WeatherApp.Infrastructure.External;
-
-public class WeatherApiResponse
+﻿public class WeatherApiResponse
 {
-    [JsonPropertyName("current")]
+    public WeatherApiLocation Location { get; set; }
     public CurrentWeather Current { get; set; }
 }
 
-public class CurrentWeather
+public class WeatherApiLocation
 {
-    [JsonPropertyName("temp_c")]
-    public float TempC { get; set; }
-
-    [JsonPropertyName("humidity")]
-    public int Humidity { get; set; }
-
-    [JsonPropertyName("condition")]
-    public WeatherCondition Condition { get; set; }
+    public string Name { get; set; }
+    public string Region { get; set; }
+    public string Country { get; set; }
+    public double Lat { get; set; }
+    public double Lon { get; set; }
+    public string TzId { get; set; }
+    public string Localtime { get; set; }
 }
 
-public class WeatherCondition
+
+public class CurrentWeather
 {
-    [JsonPropertyName("text")]
+    public double TempC { get; set; }
+    public double TempF { get; set; }
+    public Condition Condition { get; set; }
+    public double WindMph { get; set; }
+    public double WindKph { get; set; }
+    public int Humidity { get; set; }
+    public int Cloud { get; set; }
+    public double FeelslikeC { get; set; }
+    public double FeelslikeF { get; set; }
+}
+
+public class Condition
+{
     public string Text { get; set; }
+    public string Icon { get; set; }
+    public int Code { get; set; }
 }

@@ -3,7 +3,6 @@ using WeatherApp.Application.Handlers;
 using WeatherApp.Application.Repositories;
 using WeatherApp.Application.Services.Interfaces;
 using WeatherApp.Data;
-using WeatherApp.Infrastructure.Clients;
 using WeatherApp.Infrastructure.Data;
 using WeatherApp.Infrastructure.Repositories;
 using WeatherApp.Application.Validators;
@@ -36,7 +35,7 @@ builder.Services.AddHttpClient<IWeatherApiClient, WeatherApiClient>();
 builder.Services.AddHttpClient<IWeatherApiClient, WeatherStackClient>();
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect("localhost:6379"));
 builder.Services.AddScoped<IWeatherService, WeatherService>();
-//builder.Services.Decorate<IWeatherService, RedisCacheWeatherService>();
+builder.Services.Decorate<IWeatherService, RedisCacheWeatherService>();
 builder.Services.AddScoped<IFavoriteCityService, FavoriteCityService>();
 
 

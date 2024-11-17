@@ -5,41 +5,81 @@
 <h3>Weather Forecast</h3>
 
 <div>
-    <label for="cityInput">Enter city name:</label>
-    <input id="cityInput" @bind="CityName" placeholder="City name..." />
-    <button @onclick="GetWeather">Get Weather</button>
+    <label for="cityInput">Enter city names (comma separated):</label>
+    <input id="cityInput" @bind="CityNames" placeholder="City names..." class="form-control" />
+    <button @onclick="GetWeather" class="btn btn-primary mt-2" disabled="@IsLoading">Get Weather</button>
 </div>
 
-@if (WeatherData != null)
+@if (IsLoading)
 {
-    <div>
-        <h4>Weather Data for @CityName:</h4>
-        <p>Temperature: @WeatherData.Temperature °C</p>
-        <p>Condition: @WeatherData.Condition</p>
-    </div>
+    <p>Loading weather data...</p>
 }
 
-@if (ErrorMessage != null)
+@if (WeatherData != null && WeatherData.Any())
 {
-    <p style="color: red">@ErrorMessage</p>
+    <div class="mt-4">
+        <h4>Weather Data:</h4>
+        <ul>
+            @foreach (var data in WeatherData)
+            {
+                <li>
+                    <b>@data.City:</b> Temperature: @data.Temperature °C, Condition: @data.Condition
+                </li>
+            }
+        </ul>
+    </div>
+}
+else if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <p class="text-danger mt-4">@ErrorMessage</p>
 }
 
 @code {
-    private string CityName = string.Empty;
-    private WeatherInfo? WeatherData;
+    private string CityNames = string.Empty; // Virgülle ayrılmış şehir adları
+    private List<WeatherInfo> WeatherData = new();
     private string? ErrorMessage;
+    private bool IsLoading = false;
 
     private async Task GetWeather()
     {
+        if (string.IsNullOrWhiteSpace(CityNames))
+        {
+            ErrorMessage = "City names cannot be empty.";
+            WeatherData = new List<WeatherInfo>();
+            return;
+        }
+
+        IsLoading = true;
+        ErrorMessage = null;
+
         try
         {
-            WeatherData = await WeatherService.GetWeatherAsync(CityName);
-            ErrorMessage = WeatherData == null ? "No weather data available." : null;
+            // Şehir adlarını virgülle ayrılmış şekilde alıyoruz
+            var cityList = CityNames.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(c => c.Trim())
+                                    .ToList();
+
+            // Hava durumu verilerini toplu olarak al
+            var weatherDictionary = await WeatherService.GetWeatherForCitiesAsync(cityList);
+
+            // Gelen sonuçları bir listeye dönüştür
+            WeatherData = weatherDictionary
+                .Where(kv => kv.Value != null) // Null olanları filtrele
+                .Select(kv => kv.Value!)
+                .ToList();
+
+            if (!WeatherData.Any())
+            {
+                ErrorMessage = "No weather data available for the provided cities.";
+            }
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"Error fetching weather data: {ex.Message}";
+            ErrorMessage = $"An error occurred while fetching weather data: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 }
-

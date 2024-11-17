@@ -11,10 +11,14 @@
 <h3>Add Favorite City</h3>
 <div>
     <input @bind="NewCity" placeholder="Enter city name..." class="form-control" />
-    <button @onclick="AddCity" class="btn btn-primary mt-2">Add</button>
+    <button @onclick="AddCity" class="btn btn-primary mt-2" disabled="@IsLoading">Add</button>
 </div>
 
-@if (FavoriteCities.Any())
+@if (IsLoading)
+{
+    <p class="mt-4">Loading favorite cities...</p>
+}
+else if (FavoriteCities.Any())
 {
     <h4 class="mt-4">Favorite Cities</h4>
     <ul>
@@ -41,6 +45,7 @@ else
     private string NewCity = string.Empty;
     private List<WeatherCityViewModel> FavoriteCities = new();
     private FavoriteCitySummary? Summary;
+    private bool IsLoading = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -49,43 +54,85 @@ else
 
     private async Task AddCity()
     {
-        var command = new AddFavoriteCityCommand(NewCity);
+        try
+        {
+            IsLoading = true;
+            var command = new AddFavoriteCityCommand(NewCity);
 
-        await Mediator.Send(command);
-        await LoadFavoriteCities();
-        NewCity = string.Empty;
+            await Mediator.Send(command);
+            await LoadFavoriteCities();
+            NewCity = string.Empty;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     private async Task RemoveCity(Guid cityId)
     {
-        var command = new DeleteFavoriteCityCommand(cityId);
-        await Mediator.Send(command);
-        await LoadFavoriteCities();
+        try
+        {
+            IsLoading = true;
+            var command = new DeleteFavoriteCityCommand(cityId);
+            await Mediator.Send(command);
+            await LoadFavoriteCities();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     private async Task LoadFavoriteCities()
     {
-        // Favori şehirleri getir
-        var query = new GetAllFavoriteCitiesQuery();
-        var cities = await Mediator.Send(query);
+        try
+        {
+            IsLoading = true;
 
-        // Şehirlerin hava durumu bilgilerini al
-        var cityNames = cities.Select(c => c.CityName);
-        var weatherInfos = await FavoriteCityService.GetWeatherForCitiesAsync(cityNames);
+            // Favori şehirleri ve hava durumu verilerini yükle
+            var query = new GetAllFavoriteCitiesQuery();
+            var cities = await Mediator.Send(query);
 
-        // Favori şehir listesi oluştur
-        FavoriteCities = cities
-            .Select(c => new WeatherCityViewModel
+            if (cities == null || !cities.Any())
+            {
+                FavoriteCities.Clear();
+                Summary = null;
+                return;
+            }
+
+            var cityNames = cities.Select(c => c.CityName);
+            var weatherInfos = await FavoriteCityService.GetWeatherForCitiesAsync(cityNames);
+
+            // Şehirleri tek bir sorguyla eşleştir
+            var weatherInfoDict = weatherInfos.ToDictionary(w => w.City, w => w);
+
+            FavoriteCities = cities
+                .Select(c => new WeatherCityViewModel
+                    {
+                        Id = c.Id,
+                        CityName = c.CityName,
+                        Temperature = weatherInfoDict.TryGetValue(c.CityName, out var info) ? info.Temperature : 0,
+                        Condition = weatherInfoDict.TryGetValue(c.CityName, out var info2) ? info2.Condition : "N/A"
+                    })
+                .ToList();
+
+            // Özet bilgilerini hesapla
+            var hottestCity = weatherInfos.OrderByDescending(w => w.Temperature).FirstOrDefault();
+            var coldestCity = weatherInfos.OrderBy(w => w.Temperature).FirstOrDefault();
+            var averageTemperature = weatherInfos.Any() ? weatherInfos.Average(w => w.Temperature) : 0;
+
+            Summary = new FavoriteCitySummary
                 {
-                    Id = c.Id,
-                    CityName = c.CityName,
-                    Temperature = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Temperature ?? 0,
-                    Condition = weatherInfos.FirstOrDefault(w => w.City == c.CityName)?.Condition ?? "N/A"
-                })
-            .ToList();
-
-        // Özet bilgileri getir
-        Summary = await FavoriteCityService.GetFavoriteCitySummaryAsync();
+                    HottestCity = hottestCity,
+                    ColdestCity = coldestCity,
+                    AverageTemperature = averageTemperature
+                };
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     public class WeatherCityViewModel

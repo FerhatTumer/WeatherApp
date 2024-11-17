@@ -12,6 +12,7 @@ public class WeatherServiceTests
     private readonly Mock<IWeatherApiClient> _mockApiClient1;
     private readonly Mock<IWeatherApiClient> _mockApiClient2;
     private readonly WeatherService _weatherService;
+    private readonly Mock<StackExchange.Redis.IDatabase> _mockRedis;
 
     public WeatherServiceTests()
     {
@@ -20,9 +21,9 @@ public class WeatherServiceTests
 
         var clients = new List<IWeatherApiClient> { _mockApiClient1.Object, _mockApiClient2.Object };
 
-        var mockRedis = new Mock<StackExchange.Redis.IDatabase>();
+        _mockRedis = new Mock<StackExchange.Redis.IDatabase>();
         var mockConnection = new Mock<StackExchange.Redis.IConnectionMultiplexer>();
-        mockConnection.Setup(c => c.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(mockRedis.Object);
+        mockConnection.Setup(c => c.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(_mockRedis.Object);
 
         _weatherService = new WeatherService(clients, mockConnection.Object);
     }
@@ -32,8 +33,17 @@ public class WeatherServiceTests
     {
         // Arrange
         var cityName = "Istanbul";
-        _mockApiClient1.Setup(c => c.FetchWeatherAsync(cityName)).ReturnsAsync(new WeatherInfo { City = cityName, Temperature = 20 });
-        _mockApiClient2.Setup(c => c.FetchWeatherAsync(cityName)).ReturnsAsync(new WeatherInfo { City = cityName, Temperature = 30 });
+        var weatherData = new Dictionary<string, WeatherInfo?>
+        {
+            { cityName, new WeatherInfo { City = cityName, Temperature = 20 } },
+            { cityName, new WeatherInfo { City = cityName, Temperature = 30 } }
+        };
+
+        _mockApiClient1.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(weatherData);
+
+        _mockApiClient2.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(weatherData);
 
         // Act
         var result = await _weatherService.GetWeatherAsync(cityName);
@@ -49,8 +59,16 @@ public class WeatherServiceTests
     {
         // Arrange
         var cityName = "Istanbul";
-        _mockApiClient1.Setup(c => c.FetchWeatherAsync(cityName)).ReturnsAsync(new WeatherInfo { City = cityName, Temperature = 20 });
-        _mockApiClient2.Setup(c => c.FetchWeatherAsync(cityName)).ThrowsAsync(new Exception("API Failure"));
+        var weatherData = new Dictionary<string, WeatherInfo?>
+        {
+            { cityName, new WeatherInfo { City = cityName, Temperature = 20 } }
+        };
+
+        _mockApiClient1.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(weatherData);
+
+        _mockApiClient2.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ThrowsAsync(new Exception("API Failure"));
 
         // Act
         var result = await _weatherService.GetWeatherAsync(cityName);
@@ -66,25 +84,54 @@ public class WeatherServiceTests
     {
         // Arrange
         var cityName = "Istanbul";
-        _mockApiClient1.Setup(c => c.FetchWeatherAsync(cityName)).ThrowsAsync(new Exception("API Failure"));
-        _mockApiClient2.Setup(c => c.FetchWeatherAsync(cityName)).ThrowsAsync(new Exception("API Failure"));
-
-        var mockRedis = new Mock<StackExchange.Redis.IDatabase>();
         var cachedData = new WeatherInfo { City = cityName, Temperature = 15 };
-        mockRedis.Setup(r => r.StringGetAsync(cityName.ToLower(), default))
+
+        _mockApiClient1.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ThrowsAsync(new Exception("API Failure"));
+
+        _mockApiClient2.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ThrowsAsync(new Exception("API Failure"));
+
+        _mockRedis.Setup(r => r.StringGetAsync(cityName.ToLower(), default))
             .ReturnsAsync(System.Text.Json.JsonSerializer.Serialize(cachedData));
 
-        var mockConnection = new Mock<StackExchange.Redis.IConnectionMultiplexer>();
-        mockConnection.Setup(c => c.GetDatabase(It.IsAny<int>(), It.IsAny<object>())).Returns(mockRedis.Object);
-
-        var weatherServiceWithCache = new WeatherService(new List<IWeatherApiClient> { _mockApiClient1.Object, _mockApiClient2.Object }, mockConnection.Object);
-
         // Act
-        var result = await weatherServiceWithCache.GetWeatherAsync(cityName);
+        var result = await _weatherService.GetWeatherAsync(cityName);
 
         // Assert
         Assert.NotNull(result);
         Assert.Equal(cityName, result.City);
         Assert.Equal(15, result.Temperature); // Cached result
+    }
+
+    [Fact]
+    public async Task GetWeatherAsync_ShouldHandleMultipleCities()
+    {
+        // Arrange
+        var cityNames = new[] { "Istanbul", "Ankara" };
+        var weatherData = new Dictionary<string, WeatherInfo?>
+        {
+            { "Istanbul", new WeatherInfo { City = "Istanbul", Temperature = 20 } },
+            { "Ankara", new WeatherInfo { City = "Ankara", Temperature = 15 } }
+        };
+
+        _mockApiClient1.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(weatherData);
+
+        _mockApiClient2.Setup(c => c.FetchWeatherAsync(It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(weatherData);
+
+        // Act
+        var istanbulResult = await _weatherService.GetWeatherAsync("Istanbul");
+        var ankaraResult = await _weatherService.GetWeatherAsync("Ankara");
+
+        // Assert
+        Assert.NotNull(istanbulResult);
+        Assert.Equal("Istanbul", istanbulResult.City);
+        Assert.Equal(20, istanbulResult.Temperature);
+
+        Assert.NotNull(ankaraResult);
+        Assert.Equal("Ankara", ankaraResult.City);
+        Assert.Equal(15, ankaraResult.Temperature);
     }
 }

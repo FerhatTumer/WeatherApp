@@ -9,6 +9,6 @@ public class AddFavoriteCityValidator : AbstractValidator<AddFavoriteCityCommand
     {
         RuleFor(x => x.CityName)
             .NotEmpty().WithMessage("City name is required.")
-            .MaximumLength(10).WithMessage("City name cannot exceed 100 characters.");
+            .MaximumLength(100).WithMessage("City name cannot exceed 100 characters.");
     }
 }
